@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🧺 Cesta Básica — Gestão RH</title>
+
+<!-- Firebase SDKs -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    getFirestore, collection, doc, getDocs, setDoc, deleteDoc, getDoc
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyD2RpC-IQeZ_GB1f4_hfSBQN4oN3qgwnO0",
+    authDomain: "gestao-rh-d8099.firebaseapp.com",
+    projectId: "gestao-rh-d8099",
+    storageBucket: "gestao-rh-d8099.firebasestorage.app",
+    messagingSenderId: "691366323785",
+    appId: "1:691366323785:web:e66556ae2d2eea0cfd4198"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+  window._db = db;
+  window._fsLib = { collection, doc, getDocs, setDoc, deleteDoc, getDoc };
+
+  async function loadFromFirestore() {
+    const { collection, getDocs } = window._fsLib;
+    try {
+      const fSnap = await getDocs(collection(db, 'funcionarios'));
+      if (!fSnap.empty) window._funcionarios = fSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      const cSnap = await getDocs(collection(db, 'cestasBasicas'));
+      if (!cSnap.empty) window._cestas = cSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch(e) {
+      console.warn('Firebase erro:', e);
+      window._fbOffline = true;
+      window._fbErrorMsg = e.code || e.message || String(e);
+    }
+    window._fbReady = true;
+    if (typeof window._initApp === 'function') window._initApp();
+  }
+  loadFromFirestore();
+</script>
+
+<style>
+:root {
+  --primary:#6366f1;--primary-dark:#4f46e5;--primary-light:#e0e7ff;
+  --secondary:#f59e0b;--secondary-light:#fef3c7;
+  --success:#10b981;--success-light:#d1fae5;
+  --danger:#ef4444;--danger-light:#fee2e2;
+  --info:#3b82f6;--info-light:#dbeafe;
+  --bg:#f8fafc;--card:#fff;--border:#e2e8f0;
+  --text:#1e293b;--muted:#64748b;--sw:240px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
+
+/* ── SIDEBAR ── */
+.sb{width:var(--sw);background:linear-gradient(160deg,#1e1b4b,#312e81);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100}
+.sb-logo{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.1)}
+.sb-logo-inner{display:flex;align-items:center;gap:11px}
+.sb-logo-icon{width:36px;height:36px;background:linear-gradient(135deg,#6366f1,#818cf8);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(99,102,241,.4)}
+.sb-logo-icon svg{width:19px;height:19px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sb-logo h1{color:#fff;font-size:14px;font-weight:700;line-height:1.2}
+.sb-logo span{color:#a5b4fc;font-size:10px;display:block;margin-top:1px}
+.sb-nav{flex:1;padding:14px 10px;display:flex;flex-direction:column;gap:3px;overflow-y:auto}
+.ni{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:10px;color:#c7d2fe;cursor:pointer;transition:all .2s;font-size:13px;font-weight:500}
+.ni:hover{background:rgba(255,255,255,.1);color:#fff}
+.ni.active{background:rgba(99,102,241,.4);color:#fff}
+.ni .ic{font-size:16px;width:20px;text-align:center;display:flex;align-items:center;justify-content:center}
+.ni .ic svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sb-foot{padding:12px 16px;border-top:1px solid rgba(255,255,255,.08);font-size:10px;color:#a5b4fc;text-align:center;line-height:1.5}
+#fb-status{display:flex;align-items:center;gap:5px;font-size:10px;padding:3px 8px;border-radius:20px;font-weight:700;justify-content:center;margin-bottom:8px}
+#fb-status.online{background:#d1fae5;color:#065f46}
+#fb-status.offline{background:#fee2e2;color:#991b1b}
+#fb-status.loading{background:#fef3c7;color:#92400e}
+
+/* Sidebar filter area */
+.sb-filter{padding:12px 12px 0;border-top:1px solid rgba(255,255,255,.08);margin-top:4px}
+.sb-filter-title{font-size:9px;font-weight:800;color:#818cf8;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:5px}
+.sb-filter-title svg{width:11px;height:11px;stroke:#818cf8;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.sb-sel{width:100%;padding:6px 9px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:#e0e7ff;font-size:12px;outline:none;cursor:pointer;margin-bottom:7px;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24'%3E%3Cpolyline points='6 9 12 15 18 9' stroke='%23a5b4fc' stroke-width='2.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.sb-sel:focus{border-color:#6366f1;background:rgba(99,102,241,.15)}
+.sb-sel option{background:#1e1b4b;color:#e0e7ff}
+
+/* ── MAIN ── */
+.main{margin-left:var(--sw);flex:1;display:flex;flex-direction:column}
+.topbar{background:var(--card);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.topbar h2{font-size:19px;font-weight:700}
+.content{padding:24px 28px;flex:1}
+
+/* ── CARDS ── */
+.cg{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:18px;margin-bottom:24px}
+.card{background:var(--card);border-radius:16px;padding:18px;border:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.ci{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+.ci svg{width:22px;height:22px;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.cl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.cv{font-size:28px;font-weight:800;margin-top:3px}
+.cs{font-size:12px;color:var(--muted);margin-top:3px}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:8px 16px;border-radius:9px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s}
+.bp{background:var(--primary);color:#fff}.bp:hover{background:var(--primary-dark)}
+.bs{background:var(--border);color:var(--text)}.bs:hover{background:#cbd5e1}
+.bg{background:var(--success);color:#fff}.bg:hover{background:#059669}
+.bd{background:var(--danger);color:#fff}.bd:hover{background:#dc2626}
+.bw{background:var(--secondary);color:#fff}.bw:hover{background:#d97706}
+.sm{padding:5px 11px;font-size:12px}
+.btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+
+/* ── TABLE ── */
+.tw{background:var(--card);border-radius:16px;border:1px solid var(--border);overflow:hidden;margin-top:0}
+.th{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.th h3{font-size:14px;font-weight:700}
+table{width:100%;border-collapse:collapse}
+th{background:var(--bg);padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+td{padding:11px 14px;border-top:1px solid var(--border);font-size:13px;vertical-align:middle}
+tr:hover td{background:#f8fafc}
+
+/* ── FILTER BAR ── */
+.filter-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;padding:14px 18px;background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.03)}
+.filter-bar label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;white-space:nowrap}
+.filter-group{display:flex;align-items:center;gap:6px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:6px 10px;transition:border .2s}
+.filter-group:focus-within{border-color:var(--primary);background:#fff}
+.filter-group svg{flex-shrink:0;width:14px;height:14px;stroke:#6366f1;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.fsel{border:none;background:transparent;font-size:13px;color:var(--text);outline:none;min-width:130px;cursor:pointer;font-weight:500}
+
+/* ── TOGGLE SIM/NÃO ── */
+.toggle-wrap{display:flex;align-items:center;gap:8px}
+.toggle{position:relative;width:46px;height:24px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0;position:absolute}
+.slider{position:absolute;inset:0;border-radius:24px;background:#cbd5e1;cursor:pointer;transition:.25s}
+.slider:before{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;left:3px;top:3px;transition:.25s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+input:checked + .slider{background:var(--success)}
+input:checked + .slider:before{transform:translateX(22px)}
+.toggle-label{font-size:12px;font-weight:700;min-width:28px}
+.toggle-label.sim{color:var(--success)}
+.toggle-label.nao{color:var(--muted)}
+
+/* ── QTD INPUT ── */
+.qty-input{width:72px;padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;text-align:center;outline:none;transition:border .2s;background:var(--bg)}
+.qty-input:focus{border-color:var(--primary);background:#fff}
+.qty-input:disabled{opacity:.4;cursor:not-allowed;background:#f1f5f9}
+
+/* ── BADGE ── */
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.badge-sim{background:var(--success-light);color:#065f46;border:1px solid #6ee7b7}
+.badge-nao{background:#f1f5f9;color:var(--muted);border:1px solid var(--border)}
+.badge-empresa{background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd}
+
+/* ── EMPTY STATE ── */
+.es{text-align:center;padding:48px;color:var(--muted)}
+.es .ei{font-size:40px;margin-bottom:10px}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:22px;right:22px;padding:12px 18px;border-radius:11px;font-size:13px;font-weight:600;display:none;z-index:999;box-shadow:0 4px 20px rgba(0,0,0,.15);color:#fff}
+
+/* ── LOADING OVERLAY ── */
+#loading-overlay{position:fixed;inset:0;background:rgba(30,27,75,.7);display:flex;align-items:center;justify-content:center;z-index:500;flex-direction:column;gap:14px}
+#loading-overlay .spin{width:44px;height:44px;border:4px solid rgba(255,255,255,.2);border-top-color:#818cf8;border-radius:50%;animation:spin .8s linear infinite}
+#loading-overlay p{color:#e0e7ff;font-size:14px;font-weight:600}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── SECTION HEADER ── */
+.section-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+
+/* ── MÊS DE REFERÊNCIA (pill roxo) ── */
+.mes-ref-pill{display:inline-flex;align-items:center;gap:7px;background:#ede9fe;border:1.5px solid #c4b5fd;border-radius:20px;padding:5px 14px;font-size:12px;font-weight:700;color:#5b21b6;cursor:pointer;transition:all .2s;white-space:nowrap}
+.mes-ref-pill:hover{background:#ddd6fe;border-color:#a78bfa}
+.mes-ref-pill svg{width:13px;height:13px;stroke:#5b21b6;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.mes-ref-label{font-size:9px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:.5px;margin-right:2px}
+
+/* Dropdown mês referência */
+.mes-ref-dropdown{position:absolute;top:calc(100% + 6px);right:0;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:200;min-width:220px;padding:12px;display:none}
+.mes-ref-dropdown.open{display:block}
+.mes-ref-dropdown-title{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.mes-ref-row{display:flex;gap:6px;margin-bottom:6px}
+.mes-ref-sel{flex:1;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;color:var(--text);background:var(--bg);outline:none;cursor:pointer;transition:border .2s}
+.mes-ref-sel:focus{border-color:#6366f1;background:#fff}
+.mes-ref-confirm{width:100%;padding:7px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px;transition:background .2s}
+.mes-ref-confirm:hover{background:#4f46e5}
+.mes-ref-note{font-size:10px;color:var(--muted);margin-top:6px;line-height:1.4;text-align:center}
+
+/* ── BOTÃO ENVIAR PEDIDO ── */
+.enviar-pedido-bar{background:var(--card);border:1.5px solid #c4b5fd;border-radius:16px;padding:18px 24px;margin-top:24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.enviar-pedido-info{display:flex;flex-direction:column;gap:3px}
+.enviar-pedido-info strong{font-size:14px;font-weight:700;color:var(--text)}
+.enviar-pedido-info span{font-size:12px;color:var(--muted)}
+.btn-enviar{background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;border:none;border-radius:11px;padding:11px 24px;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:all .2s;box-shadow:0 4px 14px rgba(99,102,241,.35)}
+.btn-enviar:hover{background:linear-gradient(135deg,#4f46e5,#6366f1);box-shadow:0 6px 18px rgba(99,102,241,.45);transform:translateY(-1px)}
+.btn-enviar svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* Modal confirmação */
+.modal-overlay{position:fixed;inset:0;background:rgba(30,27,75,.5);z-index:300;display:none;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal-box{background:var(--card);border-radius:18px;padding:28px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.2);text-align:center}
+.modal-icon{font-size:40px;margin-bottom:12px}
+.modal-box h3{font-size:17px;font-weight:700;margin-bottom:6px}
+.modal-box p{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5}
+.modal-actions{display:flex;gap:10px;justify-content:center}
+
+/* ── PRINT/PDF STYLES ── */
+@media print {
+  body{background:#fff !important}
+  .sb,.topbar,.filter-bar,.btn,.section-header button,
+  #toast,#loading-overlay,.no-print{display:none !important}
+  .main{margin-left:0 !important}
+  .content{padding:0 !important}
+  .card{box-shadow:none !important;break-inside:avoid}
+  .cg{gap:10px}
+  .pdf-empresa-block{page-break-after:always}
+  .pdf-empresa-block:last-child{page-break-after:avoid}
+  .pdf-header{display:block !important}
+  table{font-size:11px}
+  th,td{padding:7px 10px}
+  .toggle,.qty-input{display:none}
+  .print-sim,.print-qty{display:inline !important}
+}
+.pdf-header{display:none}
+.print-sim,.print-qty{display:none}
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading-overlay">
+  <div class="spin"></div>
+  <p>Carregando dados do Firebase…</p>
+</div>
+
+<!-- ── SIDEBAR ── -->
+<aside class="sb">
+  <div class="sb-logo">
+    <div class="sb-logo-inner">
+      <div class="sb-logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+      </div>
+      <div>
+        <h1>Cesta Básica</h1>
+        <span>Gestão de Benefícios RH</span>
+      </div>
+    </div>
+  </div>
+
+  <nav class="sb-nav">
+    <div class="ni active" onclick="showSection('cestas',this)">
+      <span class="ic"><svg viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></span>
+      <span>Cesta Básica</span>
+    </div>
+    <div class="ni" onclick="showSection('historico',this)">
+      <span class="ic"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
+      <span>Histórico</span>
+    </div>
+  </nav>
+
+  <!-- Selects ocultos para compatibilidade com funções que usam sb-mes, sb-ano, sb-empresa -->
+  <select id="sb-mes" style="display:none"></select>
+  <select id="sb-ano" style="display:none"></select>
+  <select id="sb-empresa" style="display:none"></select>
+
+  <div class="sb-foot">
+    <div id="fb-status" class="loading">⏳ Conectando...</div>
+    Sistema desenvolvido por Leandro Machado
+  </div>
+</aside>
+
+<!-- ── MAIN ── -->
+<main class="main">
+  <div class="topbar">
+    <h2 id="ptitle">🧺 Cesta Básica</h2>
+    <div style="display:flex;gap:8px" class="no-print">
+      <button class="btn bs sm" onclick="autoSaveAll()" id="btn-salvar" style="display:none">
+        <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Salvar Alterações
+      </button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ── SEÇÃO CESTAS ── -->
+    <div id="sec-cestas">
+
+      <!-- CARDS -->
+      <div class="cg" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
+
+        <div class="card" style="border-top:3px solid var(--primary)">
+          <div class="ci" style="background:var(--primary-light)">
+            <svg viewBox="0 0 24 24" style="stroke:#6366f1"><circle cx="9" cy="6" r="3.5"/><path d="M3 20v-1.5A5.5 5.5 0 0 1 8.5 13h1A5.5 5.5 0 0 1 15 18.5V20"/><path d="M16 11a3 3 0 1 0 0-6"/><path d="M21 20v-1a4 4 0 0 0-3-3.87"/></svg>
+          </div>
+          <div class="cl">Total Funcionários</div>
+          <div class="cv" id="card-total">0</div>
+          <div class="cs" id="card-total-sub">no período</div>
+        </div>
+
+        <div class="card" style="border-top:3px solid var(--success)">
+          <div class="ci" style="background:var(--success-light)">
+            <svg viewBox="0 0 24 24" style="stroke:#10b981"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          </div>
+          <div class="cl">Com Direito</div>
+          <div class="cv" id="card-sim">0</div>
+          <div class="cs">funcionários</div>
+        </div>
+
+        <div class="card" style="border-top:3px solid var(--secondary)">
+          <div class="ci" style="background:var(--secondary-light)">
+            <svg viewBox="0 0 24 24" style="stroke:#f59e0b"><rect x="1" y="3" width="15" height="13" rx="1"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          </div>
+          <div class="cl">Total Cestas</div>
+          <div class="cv" id="card-qtd">0</div>
+          <div class="cs">unidades confirmadas</div>
+        </div>
+
+        <div class="card" style="border-top:3px solid var(--danger)">
+          <div class="ci" style="background:var(--danger-light)">
+            <svg viewBox="0 0 24 24" style="stroke:#ef4444"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+          <div class="cl">Sem Direito</div>
+          <div class="cv" id="card-nao">0</div>
+          <div class="cs">funcionários</div>
+        </div>
+
+      </div>
+
+      <!-- FILTRO POR EMPRESA na barra principal (redundante mas útil visualmente) -->
+      <div class="filter-bar no-print">
+        <div class="filter-group">
+          <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <label>Empresa</label>
+          <select id="f-empresa" class="fsel" onchange="renderTable()">
+            <option value="">Todas</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="f-busca" class="fsel" placeholder="Buscar funcionário..." oninput="renderTable()" style="min-width:180px">
+        </div>
+        <div class="filter-group">
+          <svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <label>Status</label>
+          <select id="f-status" class="fsel" onchange="renderTable()">
+            <option value="">Todos</option>
+            <option value="sim">✅ Com direito</option>
+            <option value="nao">❌ Sem direito</option>
+          </select>
+        </div>
+        <button class="btn bs sm" style="margin-left:auto" onclick="clearFilters()">
+          <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Limpar filtros
+        </button>
+      </div>
+
+      <!-- TABELA -->
+      <div class="tw">
+        <div class="th">
+          <h3>🧺 Funcionários</h3>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div style="position:relative">
+              <button class="mes-ref-pill" onclick="toggleMesRefDropdown(event)" title="Mês de referência para lançamento">
+                <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <span class="mes-ref-label">Referência</span>
+                <span id="pill-mes-ref-texto">…</span>
+              </button>
+              <div class="mes-ref-dropdown" id="mes-ref-dropdown">
+                <div class="mes-ref-dropdown-title">📅 Mês de referência do lançamento</div>
+                <div class="mes-ref-row">
+                  <select class="mes-ref-sel" id="ref-mes">
+                    <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+                    <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+                    <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+                    <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+                  </select>
+                  <select class="mes-ref-sel" id="ref-ano" style="max-width:90px">
+                    <option value="2024">2024</option>
+                    <option value="2025">2025</option>
+                    <option value="2026" selected>2026</option>
+                    <option value="2027">2027</option>
+                  </select>
+                </div>
+                <button class="mes-ref-confirm" onclick="confirmarMesRef()">Confirmar período</button>
+                <div class="mes-ref-note">Este período será usado para o lançamento das cestas e para o envio do pedido.</div>
+              </div>
+            </div>
+            <span id="th-count" style="font-size:11px;font-weight:700;background:var(--primary-light);color:var(--primary-dark);padding:2px 10px;border-radius:12px">0 registros</span>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:40px">#</th>
+                <th>Funcionário</th>
+                <th>Empresa</th>
+                <th style="text-align:center">Tem Direito à Cesta Básica</th>
+                <th style="text-align:center">Quantidade</th>
+              </tr>
+            </thead>
+            <tbody id="tb-cestas">
+              <tr><td colspan="5"><div class="es"><div class="ei">🧺</div><p>Carregando…</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- BARRA ENVIAR PEDIDO -->
+      <div class="enviar-pedido-bar no-print" id="barra-enviar">
+        <div class="enviar-pedido-info">
+          <strong>📦 Enviar pedido de cesta básica</strong>
+          <span id="enviar-resumo">Selecione o mês de referência e faça os lançamentos antes de enviar.</span>
+        </div>
+        <button class="btn-enviar" onclick="confirmarEnvioPedido()">
+          <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Enviar Pedido
+        </button>
+      </div>
+
+    </div><!-- /sec-cestas -->
+
+    <!-- ── SEÇÃO HISTÓRICO ── -->
+    <div id="sec-historico" style="display:none">
+
+      <!-- Filtros do histórico -->
+      <div class="filter-bar no-print">
+        <div class="filter-group">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <label>Mês</label>
+          <select id="hist-mes" class="fsel" onchange="renderHistorico()">
+            <option value="">Todos</option>
+            <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+            <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+            <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+            <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <label>Empresa</label>
+          <select id="hist-empresa" class="fsel" onchange="renderHistorico()">
+            <option value="">Todas</option>
+          </select>
+        </div>
+        <button class="btn bs sm" onclick="clearHistoricoFilters()">
+          <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Limpar filtros
+        </button>
+        <button class="btn bg sm" style="margin-left:auto" onclick="exportPDF()">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Exportar PDF
+        </button>
+      </div>
+
+      <div class="tw">
+        <div class="th">
+          <h3>📋 Histórico de Registros por Período</h3>
+          <span id="hist-count" style="font-size:11px;font-weight:700;background:var(--primary-light);color:var(--primary-dark);padding:2px 10px;border-radius:12px">0 registros</span>
+        </div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Período</th>
+                <th>Empresa</th>
+                <th>Funcionário</th>
+                <th style="text-align:center">Tem Direito</th>
+                <th style="text-align:center">Quantidade</th>
+              </tr>
+            </thead>
+            <tbody id="tb-historico">
+              <tr><td colspan="5"><div class="es"><div class="ei">📋</div><p>Nenhum histórico</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ÁREA PDF (oculta na tela, usada para impressão) -->
+    <div id="pdf-content" style="display:none"></div>
+
+  </div><!-- /content -->
+<div id="modal-envio" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-icon">📦</div>
+    <h3>Confirmar envio do pedido?</h3>
+    <p id="modal-envio-texto">Os lançamentos do período serão registrados no histórico e não poderão ser editados por esta tela.</p>
+    <div class="modal-actions">
+      <button class="btn bs" onclick="fecharModal()">Cancelar</button>
+      <button class="btn bp" onclick="executarEnvioPedido()">
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><polyline points="20 6 9 17 4 12"/></svg>
+        Confirmar envio
+      </button>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+// ─── GLOBALS ─────────────────────────────────────────────────────────────────
+let funcionarios = [];
+let cestas = [];       // [{id, funcId, funcNome, funcEmpresa, mes, ano, temDireito, quantidade}] — apenas pendentes
+let historico = [];    // registros com pedidoEnviado=true
+let _fbReady = false;
+let _pendingChanges = {};  // funcId -> {temDireito, quantidade}
+let _saveTimer = null;
+let _refMes = new Date().getMonth() + 1;   // mês de referência do lançamento
+let _refAno = new Date().getFullYear();     // ano de referência do lançamento
+
+const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+               'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+function toast(msg, type='g'){
+  const t = $('toast');
+  t.textContent = msg;
+  t.style.background = type==='g'?'#10b981':type==='d'?'#ef4444':type==='w'?'#f59e0b':'#6366f1';
+  t.style.display = 'block';
+  setTimeout(()=>{ t.style.display='none'; }, 3200);
+}
+
+function getMesAno(){
+  return { mes: _refMes, ano: _refAno };
+}
+
+function getPeriodKey(mes, ano){ return `${ano}-${String(mes).padStart(2,'0')}`; }
+
+function getCestaKey(funcId, mes, ano){ return `${funcId}_${getPeriodKey(mes, ano)}`; }
+
+// ─── FIREBASE ─────────────────────────────────────────────────────────────────
+function fbAvailable(){ return window._db && !window._fbOffline; }
+
+async function fbSaveCesta(cesta){
+  if(!fbAvailable()) return;
+  const { doc, setDoc } = window._fsLib;
+  try { await setDoc(doc(window._db,'cestasBasicas', cesta.id), cesta); } 
+  catch(e){ console.warn('Erro ao salvar cesta:', e); }
+}
+
+async function fbDeleteCesta(id){
+  if(!fbAvailable()) return;
+  const { doc, deleteDoc } = window._fsLib;
+  try { await deleteDoc(doc(window._db,'cestasBasicas', id)); }
+  catch(e){ console.warn('Erro ao deletar cesta:', e); }
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+window._initApp = function(){
+  _fbReady = true;
+
+  // Funcionários
+  if(window._funcionarios && window._funcionarios.length){
+    funcionarios = window._funcionarios.map(f=>({status:'ativo',...f}));
+  } else {
+    funcionarios = JSON.parse(localStorage.getItem('cb_func')||'[]');
+  }
+
+  // Cestas — separa pendentes do histórico
+  const todasCestas = window._cestas && window._cestas.length
+    ? window._cestas
+    : JSON.parse(localStorage.getItem('cb_cestas')||'[]');
+  cestas   = todasCestas.filter(c => !c.pedidoEnviado);
+  historico = todasCestas.filter(c =>  c.pedidoEnviado);
+
+  // Firebase status
+  const fbEl = $('fb-status');
+  if(fbAvailable()){
+    fbEl.className='online'; fbEl.textContent='☁️ Firebase OK';
+  } else {
+    fbEl.className='offline';
+    fbEl.innerHTML=`📴 Offline <span style="font-weight:400;font-size:9px">${window._fbErrorMsg||''}</span>`;
+  }
+
+  // Preenche filtros e renderiza
+  const now = new Date();
+  $('sb-mes').value = now.getMonth() + 1;
+  $('sb-ano').value = now.getFullYear();
+
+  fillEmpresaFilters();
+  applyFilters();
+  atualizarPillRef();
+  hideLoading();
+};
+
+// Fallback se Firebase demorar
+setTimeout(()=>{ if(!_fbReady){ window._fbOffline=true; window._initApp(); } }, 5000);
+
+function hideLoading(){
+  const ol = $('loading-overlay');
+  if(ol) ol.style.display = 'none';
+}
+
+// ─── NAVEGAÇÃO ────────────────────────────────────────────────────────────────
+function showSection(name, el){
+  $('sec-cestas').style.display = 'none';
+  $('sec-historico').style.display = 'none';
+  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
+  if(el) el.classList.add('active');
+
+  if(name === 'cestas'){
+    $('sec-cestas').style.display = '';
+    $('ptitle').textContent = '🧺 Cesta Básica';
+  } else if(name === 'historico'){
+    $('sec-historico').style.display = '';
+    $('ptitle').textContent = '📋 Histórico';
+    renderHistorico();
+  }
+}
+
+// ─── FILTROS ─────────────────────────────────────────────────────────────────
+function fillEmpresaFilters(){
+  const empresas = [...new Set(funcionarios.map(f=>f.empresa||'').filter(Boolean))].sort();
+  const empresasHist = [...new Set(historico.map(c=>c.funcEmpresa||'').filter(Boolean))].sort();
+  const todasEmpresas = [...new Set([...empresas, ...empresasHist])].sort();
+
+  ['sb-empresa','f-empresa'].forEach(id=>{
+    const sel = $(id);
+    if(!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">Todas</option>' +
+      empresas.map(e=>`<option value="${e}">${e}</option>`).join('');
+    if(prev) sel.value = prev;
+  });
+
+  const histEmp = $('hist-empresa');
+  if(histEmp){
+    const prev = histEmp.value;
+    histEmp.innerHTML = '<option value="">Todas</option>' +
+      todasEmpresas.map(e=>`<option value="${e}">${e}</option>`).join('');
+    if(prev) histEmp.value = prev;
+  }
+}
+
+function applyFilters(){
+  fillEmpresaFilters();
+  renderTable();
+  updateCards();
+}
+
+function clearFilters(){
+  $('f-empresa').value = '';
+  $('f-busca').value = '';
+  $('f-status').value = '';
+  renderTable();
+}
+
+// ─── GET/SET CESTA ────────────────────────────────────────────────────────────
+function getCesta(funcId, mes, ano){
+  const key = getCestaKey(funcId, mes, ano);
+  return cestas.find(c => c.id === key);
+}
+
+function setCestaLocal(funcId, mes, ano, temDireito, quantidade){
+  const key = getCestaKey(funcId, mes, ano);
+  const f = funcionarios.find(x => x.id === funcId);
+  const registro = {
+    id: key,
+    funcId,
+    funcNome: f ? f.nome : '',
+    funcEmpresa: f ? (f.empresa||'') : '',
+    mes,
+    ano,
+    temDireito,
+    quantidade: temDireito ? (quantidade||1) : 0
+  };
+  const idx = cestas.findIndex(c => c.id === key);
+  if(idx >= 0) cestas[idx] = registro;
+  else cestas.push(registro);
+  localStorage.setItem('cb_cestas', JSON.stringify([...cestas, ...historico]));
+  return registro;
+}
+
+// ─── DEBOUNCE SAVE ────────────────────────────────────────────────────────────
+function scheduleSave(funcId, mes, ano){
+  const { mes: m, ano: a } = getMesAno();
+  const cesta = getCesta(funcId, m, a);
+  if(cesta) fbSaveCesta(cesta);
+  updateCards();
+}
+
+// ─── RENDERIZAÇÃO DA TABELA ───────────────────────────────────────────────────
+function renderTable(){
+  const mes = _refMes;
+  const ano = _refAno;
+  const empFiltro = ($('f-empresa')||{}).value || $('sb-empresa').value || '';
+  const busca = (($('f-busca')||{}).value||'').toLowerCase().trim();
+  const statusFiltro = ($('f-status')||{}).value || '';
+
+  // Funcionários ativos
+  let funcs = funcionarios.filter(f => (f.status||'ativo') !== 'inativo');
+
+  // Filtro empresa
+  if(empFiltro) funcs = funcs.filter(f => (f.empresa||'') === empFiltro);
+
+  // Filtro busca
+  if(busca) funcs = funcs.filter(f => f.nome.toLowerCase().includes(busca));
+
+  // Filtro status
+  if(statusFiltro){
+    funcs = funcs.filter(f => {
+      const c = getCesta(f.id, mes, ano);
+      const sim = c ? c.temDireito : false;
+      return statusFiltro === 'sim' ? sim : !sim;
+    });
+  }
+
+  // Ordena por empresa, depois nome
+  funcs.sort((a,b)=>{
+    const ea = a.empresa||'', eb = b.empresa||'';
+    if(ea !== eb) return ea.localeCompare(eb);
+    return a.nome.localeCompare(b.nome);
+  });
+
+  // Atualiza header
+  $('th-count').textContent = `${funcs.length} funcionário${funcs.length!==1?'s':''}`;
+  atualizarResumoEnviar();
+
+  const tbody = $('tb-cestas');
+  if(funcs.length === 0){
+    tbody.innerHTML = `<tr><td colspan="5"><div class="es"><div class="ei">🧺</div><p>Nenhum funcionário encontrado</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = funcs.map((f, i) => {
+    const cesta = getCesta(f.id, mes, ano);
+    const temDireito = cesta ? cesta.temDireito : false;
+    const quantidade = cesta ? (cesta.quantidade||1) : 1;
+    const checkedAttr = temDireito ? 'checked' : '';
+
+    return `
+    <tr>
+      <td style="color:var(--muted);font-size:12px">${i+1}</td>
+      <td>
+        <div style="font-weight:600">${f.nome}</div>
+        ${f.cargo ? `<div style="font-size:11px;color:var(--muted)">${f.cargo}</div>` : ''}
+      </td>
+      <td>
+        <span class="badge badge-empresa">${f.empresa||'—'}</span>
+      </td>
+      <td style="text-align:center">
+        <div class="toggle-wrap" style="justify-content:center">
+          <label class="toggle">
+            <input type="checkbox" ${checkedAttr}
+              onchange="toggleDireito('${f.id}',_refMes,_refAno,this.checked)">
+            <span class="slider"></span>
+          </label>
+          <span class="toggle-label ${temDireito?'sim':'nao'}" id="lbl-${f.id}">${temDireito?'Sim':'Não'}</span>
+        </div>
+      </td>
+      <td style="text-align:center">
+        <input type="number" class="qty-input" id="qty-${f.id}"
+          value="${quantidade}" min="1" max="99"
+          ${!temDireito?'disabled':''}
+          onchange="changeQtd('${f.id}',_refMes,_refAno,this.value)"
+          oninput="changeQtd('${f.id}',_refMes,_refAno,this.value)">
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── TOGGLE DIREITO ───────────────────────────────────────────────────────────
+function toggleDireito(funcId, mes, ano, valor){
+  const qtyEl = $('qty-'+funcId);
+  const lblEl = $('lbl-'+funcId);
+  const qtd = qtyEl ? parseInt(qtyEl.value)||1 : 1;
+
+  const cesta = setCestaLocal(funcId, mes, ano, valor, qtd);
+
+  if(qtyEl) qtyEl.disabled = !valor;
+  if(lblEl){
+    lblEl.textContent = valor ? 'Sim' : 'Não';
+    lblEl.className = 'toggle-label ' + (valor?'sim':'nao');
+  }
+
+  fbSaveCesta(cesta);
+  updateCards();
+  toast(valor ? '✅ Direito confirmado!' : '❌ Direito removido!', valor?'g':'d');
+}
+
+// ─── CHANGE QUANTIDADE ────────────────────────────────────────────────────────
+function changeQtd(funcId, mes, ano, val){
+  const qtd = Math.max(1, parseInt(val)||1);
+  const c = getCesta(funcId, mes, ano);
+  const temDireito = c ? c.temDireito : true;
+  const cesta = setCestaLocal(funcId, mes, ano, temDireito, qtd);
+  fbSaveCesta(cesta);
+  updateCards();
+}
+
+// ─── SAVE ALL (manual) ───────────────────────────────────────────────────────
+async function autoSaveAll(){
+  toast('💾 Salvando…', 'p');
+  const { mes, ano } = getMesAno();
+  const saved = cestas.filter(c => c.mes===mes && c.ano===ano);
+  for(const c of saved){ await fbSaveCesta(c); }
+  toast('✅ Todos os dados salvos!', 'g');
+}
+
+// ─── CARDS ────────────────────────────────────────────────────────────────────
+function updateCards(){
+  const mes = _refMes;
+  const ano = _refAno;
+  const empFiltro = $('sb-empresa').value || '';
+  const periodoKey = getPeriodKey(mes, ano);
+
+  let funcs = funcionarios.filter(f => (f.status||'ativo') !== 'inativo');
+  if(empFiltro) funcs = funcs.filter(f => (f.empresa||'') === empFiltro);
+
+  const total = funcs.length;
+
+  let simCount = 0, naoCount = 0, qtdTotal = 0;
+  funcs.forEach(f => {
+    const c = getCesta(f.id, mes, ano);
+    if(c && c.temDireito){ simCount++; qtdTotal += (c.quantidade||1); }
+    else naoCount++;
+  });
+
+  $('card-total').textContent = total;
+  $('card-total-sub').textContent = `${MESES[mes]} ${ano}`;
+  $('card-sim').textContent = simCount;
+  $('card-nao').textContent = naoCount;
+  $('card-qtd').textContent = qtdTotal;
+}
+
+// ─── HISTÓRICO ────────────────────────────────────────────────────────────────
+function renderHistorico(){
+  const tbody = $('tb-historico');
+  const mesFiltro = parseInt(($('hist-mes')||{}).value) || 0;
+  const empFiltro = ($('hist-empresa')||{}).value || '';
+
+  let dados = [...historico];
+  if(mesFiltro) dados = dados.filter(c => c.mes === mesFiltro);
+  if(empFiltro) dados = dados.filter(c => (c.funcEmpresa||'') === empFiltro);
+
+  const countEl = $('hist-count');
+  if(countEl) countEl.textContent = `${dados.length} registro${dados.length!==1?'s':''}`;
+
+  if(!dados.length){
+    tbody.innerHTML = `<tr><td colspan="5"><div class="es"><div class="ei">📋</div><p>Nenhum registro encontrado</p></div></td></tr>`;
+    return;
+  }
+
+  dados.sort((a,b)=>{
+    if(a.ano !== b.ano) return b.ano - a.ano;
+    if(a.mes !== b.mes) return b.mes - a.mes;
+    return (a.funcEmpresa||'').localeCompare(b.funcEmpresa||'') || a.funcNome.localeCompare(b.funcNome);
+  });
+
+  tbody.innerHTML = dados.map(c => `
+    <tr>
+      <td style="font-weight:600;white-space:nowrap">
+        ${MESES[c.mes]} / ${c.ano}
+        ${c.pedidoEnviado ? `<br><span style="font-size:10px;font-weight:700;background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd;padding:1px 7px;border-radius:10px;">✅ Pedido enviado</span>` : ''}
+      </td>
+      <td><span class="badge badge-empresa">${c.funcEmpresa||'—'}</span></td>
+      <td>${c.funcNome}</td>
+      <td style="text-align:center">
+        <span class="badge ${c.temDireito?'badge-sim':'badge-nao'}">${c.temDireito?'✅ Sim':'❌ Não'}</span>
+      </td>
+      <td style="text-align:center;font-weight:700">${c.temDireito?(c.quantidade||1):'—'}</td>
+    </tr>
+  `).join('');
+}
+
+function clearHistoricoFilters(){
+  if($('hist-mes')) $('hist-mes').value = '';
+  if($('hist-empresa')) $('hist-empresa').value = '';
+  renderHistorico();
+}
+
+// ─── MÊS DE REFERÊNCIA ────────────────────────────────────────────────────────
+function atualizarPillRef(){
+  const pill = $('pill-mes-ref-texto');
+  if(pill) pill.textContent = `${MESES[_refMes]} / ${_refAno}`;
+  // Sincroniza selects do dropdown
+  const rMes = $('ref-mes'); if(rMes) rMes.value = _refMes;
+  const rAno = $('ref-ano'); if(rAno) rAno.value = _refAno;
+  atualizarResumoEnviar();
+}
+
+function toggleMesRefDropdown(e){
+  e.stopPropagation();
+  const dd = $('mes-ref-dropdown');
+  dd.classList.toggle('open');
+}
+
+function confirmarMesRef(){
+  _refMes = parseInt($('ref-mes').value);
+  _refAno = parseInt($('ref-ano').value);
+  $('mes-ref-dropdown').classList.remove('open');
+  atualizarPillRef();
+  renderTable();
+  updateCards();
+  toast(`📅 Período de referência: ${MESES[_refMes]} / ${_refAno}`, 'p');
+}
+
+// Fecha dropdown ao clicar fora
+document.addEventListener('click', function(e){
+  const dd = $('mes-ref-dropdown');
+  if(dd && !dd.contains(e.target) && !e.target.closest('.mes-ref-pill')){
+    dd.classList.remove('open');
+  }
+});
+
+// ─── ENVIAR PEDIDO ────────────────────────────────────────────────────────────
+function atualizarResumoEnviar(){
+  const el = $('enviar-resumo');
+  if(!el) return;
+  const sim = cestas.filter(c => c.mes===_refMes && c.ano===_refAno && c.temDireito);
+  const total = sim.reduce((s,c)=>s+(c.quantidade||1),0);
+  if(sim.length === 0){
+    el.textContent = `Nenhum lançamento registrado para ${MESES[_refMes]} / ${_refAno}.`;
+  } else {
+    el.textContent = `${MESES[_refMes]} / ${_refAno} — ${sim.length} funcionário${sim.length!==1?'s':''} com direito · ${total} cesta${total!==1?'s':''} a enviar.`;
+  }
+}
+
+function confirmarEnvioPedido(){
+  const sim = cestas.filter(c => c.mes===_refMes && c.ano===_refAno && c.temDireito);
+  const total = sim.reduce((s,c)=>s+(c.quantidade||1),0);
+  if(sim.length === 0){
+    toast('⚠️ Nenhum lançamento para enviar neste período.', 'w');
+    return;
+  }
+  $('modal-envio-texto').textContent =
+    `Período: ${MESES[_refMes]} / ${_refAno} · ${sim.length} funcionário${sim.length!==1?'s':''} com direito · ${total} cesta${total!==1?'s':''} no total. Os lançamentos serão registrados no histórico.`;
+  $('modal-envio').classList.add('open');
+}
+
+function fecharModal(){
+  $('modal-envio').classList.remove('open');
+}
+
+async function executarEnvioPedido(){
+  fecharModal();
+  toast('📦 Enviando pedido…', 'p');
+
+  // Marca os registros do período como "pedido enviado" e move para histórico
+  const enviados = cestas.filter(c => c.mes===_refMes && c.ano===_refAno);
+  for(const c of enviados){
+    c.pedidoEnviado = true;
+    c.dataEnvio = new Date().toISOString();
+    await fbSaveCesta(c);
+    historico.push(c);
+  }
+
+  // Remove do array de cestas pendentes
+  cestas = cestas.filter(c => !(c.mes===_refMes && c.ano===_refAno));
+
+  // Persiste
+  const todasCestas = [...cestas, ...historico];
+  localStorage.setItem('cb_cestas', JSON.stringify(todasCestas));
+
+  toast(`✅ Pedido de ${MESES[_refMes]} / ${_refAno} enviado ao histórico!`, 'g');
+
+  // Re-renderiza tabela de cestas (agora vazia para o período)
+  renderTable();
+  updateCards();
+
+  // Vai para a aba histórico
+  const niHistorico = document.querySelector('.ni:nth-child(2)');
+  showSection('historico', niHistorico);
+  if(niHistorico){
+    document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
+    niHistorico.classList.add('active');
+  }
+}
+
+// ─── EXPORT PDF ───────────────────────────────────────────────────────────────
+function exportPDF(){
+  const histMesFiltro = parseInt(($('hist-mes')||{}).value) || 0;
+  const mes = histMesFiltro || _refMes;
+  const ano = _refAno;
+
+  // Funcionários ativos, ordenados por empresa depois nome
+  let funcs = funcionarios.filter(f => (f.status||'ativo') !== 'inativo');
+  
+  // Filtro empresa do histórico
+  const empFiltro = ($('hist-empresa')||{}).value || '';
+  if(empFiltro) funcs = funcs.filter(f => (f.empresa||'') === empFiltro);
+
+  funcs.sort((a,b)=>{
+    const ea = a.empresa||'', eb = b.empresa||'';
+    if(ea !== eb) return ea.localeCompare(eb);
+    return a.nome.localeCompare(b.nome);
+  });
+
+  // Agrupa por empresa
+  const grupos = {};
+  funcs.forEach(f=>{
+    const emp = f.empresa || '(Sem empresa)';
+    if(!grupos[emp]) grupos[emp] = [];
+    grupos[emp].push(f);
+  });
+
+  const pdfWin = window.open('', '_blank', 'width=900,height=700');
+  const periodoLabel = `${MESES[mes]} / ${ano}`;
+
+  let html = `<!DOCTYPE html><html lang="pt-BR"><head>
+  <meta charset="UTF-8">
+  <title>Cesta Básica — ${periodoLabel}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#1e293b;font-size:12px}
+    .page{padding:28px 32px;max-width:900px;margin:0 auto}
+    .empresa-block{page-break-after:always;padding-bottom:30px}
+    .empresa-block:last-child{page-break-after:avoid}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;border-bottom:2px solid #6366f1;padding-bottom:14px}
+    .header-left h1{font-size:20px;font-weight:800;color:#4f46e5}
+    .header-left p{color:#64748b;font-size:12px;margin-top:3px}
+    .header-right{text-align:right}
+    .header-right .periodo{font-size:14px;font-weight:700;color:#4f46e5;background:#e0e7ff;padding:6px 14px;border-radius:8px}
+    .empresa-title{background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;padding:10px 18px;border-radius:10px;font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:10px}
+    .emp-stats{display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+    .emp-stat{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;font-size:11px;font-weight:700;display:flex;flex-direction:column;gap:2px}
+    .emp-stat span:first-child{color:#64748b;font-weight:500}
+    .emp-stat span:last-child{font-size:16px;font-weight:800;color:#1e293b}
+    table{width:100%;border-collapse:collapse;margin-bottom:20px}
+    th{background:#f1f5f9;padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid #e2e8f0}
+    td{padding:9px 12px;border-bottom:1px solid #f1f5f9;font-size:12px;vertical-align:middle}
+    tr:nth-child(even) td{background:#fafbfc}
+    .badge-sim{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700}
+    .badge-nao{background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700}
+    .qty{font-weight:800;color:#4f46e5;font-size:14px}
+    .footer{text-align:center;color:#94a3b8;font-size:10px;margin-top:20px;border-top:1px solid #e2e8f0;padding-top:10px}
+    @media print{
+      body{font-size:11px}
+      .empresa-block{page-break-after:always}
+      .empresa-block:last-child{page-break-after:avoid}
+    }
+  </style>
+</head><body>`;
+
+  Object.entries(grupos).forEach(([empresa, funcsEmp], idx) => {
+    const simList = funcsEmp.filter(f=>{ const c=getCesta(f.id,mes,ano); return c&&c.temDireito; });
+    const totalQtd = simList.reduce((s,f)=>{ const c=getCesta(f.id,mes,ano); return s+(c&&c.quantidade||1); },0);
+
+    html += `<div class="page empresa-block">
+      <div class="header">
+        <div class="header-left">
+          <h1>🧺 Cesta Básica</h1>
+          <p>Relatório de Benefícios — ${empresa}</p>
+        </div>
+        <div class="header-right">
+          <div class="periodo">${periodoLabel}</div>
+        </div>
+      </div>
+
+      <div class="empresa-title">
+        🏢 ${empresa}
+      </div>
+
+      <div class="emp-stats">
+        <div class="emp-stat">
+          <span>Total funcionários</span>
+          <span>${funcsEmp.length}</span>
+        </div>
+        <div class="emp-stat">
+          <span>Com direito</span>
+          <span style="color:#10b981">${simList.length}</span>
+        </div>
+        <div class="emp-stat">
+          <span>Sem direito</span>
+          <span style="color:#ef4444">${funcsEmp.length - simList.length}</span>
+        </div>
+        <div class="emp-stat">
+          <span>Total cestas</span>
+          <span style="color:#6366f1">${totalQtd}</span>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:36px">#</th>
+            <th>Funcionário</th>
+            <th>Cargo / Setor</th>
+            <th style="text-align:center">Tem Direito</th>
+            <th style="text-align:center">Quantidade</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+    funcsEmp.forEach((f, i) => {
+      const c = getCesta(f.id, mes, ano);
+      const temDireito = c ? c.temDireito : false;
+      const qtd = (c && c.temDireito) ? (c.quantidade||1) : 0;
+      html += `<tr>
+        <td style="color:#94a3b8">${i+1}</td>
+        <td><strong>${f.nome}</strong></td>
+        <td style="color:#64748b">${f.cargo||'—'}</td>
+        <td style="text-align:center">
+          <span class="${temDireito?'badge-sim':'badge-nao'}">${temDireito?'✅ Sim':'❌ Não'}</span>
+        </td>
+        <td style="text-align:center">
+          ${temDireito ? `<span class="qty">${qtd}</span>` : '<span style="color:#94a3b8">—</span>'}
+        </td>
+      </tr>`;
+    });
+
+    html += `</tbody></table>
+      <div class="footer">
+        Gerado em ${new Date().toLocaleString('pt-BR')} — Sistema de Gestão RH — Leandro Machado
+      </div>
+    </div>`;
+  });
+
+  html += `</body></html>`;
+
+  pdfWin.document.write(html);
+  pdfWin.document.close();
+  setTimeout(()=>{ pdfWin.focus(); pdfWin.print(); }, 600);
+}
+
+</script>
+</body>
+</html>
